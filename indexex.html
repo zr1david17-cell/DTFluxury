@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DTF Luxury Store</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/framer-motion@10.16.16/dist/framer-motion.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+    <style>
+        body { background-color: #050505; margin: 0; font-family: system-ui, -apple-system, sans-serif; color: white; overflow-x: hidden; }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.08); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .glow-card { position: relative; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useCallback, useMemo, useState, useEffect, useRef } = React;
+        const { motion, AnimatePresence } = window.Motion;
+
+        // --- COMPONENTES AUXILIARES ---
+        const ShoppingCart = ({ count }) => (
+            <div className="relative">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" />
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                </svg>
+                {count > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-white text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                        {count}
+                    </span>
+                )}
+            </div>
+        );
+
+        const Notification = ({ message }) => (
+            <motion.div initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 20, opacity: 0 }} className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200] glass px-6 py-4 rounded-2xl flex items-center gap-4 border-white/20 shadow-2xl bg-black/80">
+                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-sm font-medium tracking-wide">{message}</span>
+            </motion.div>
+        );
+
+        // --- COMPONENTE PRINCIPAL ---
+        function Home() {
+            const [allProducts, setAllProducts] = useState([]);
+            const [page, setPage] = useState("home");
+            const [activeCategory, setActiveCategory] = useState("Todos");
+            const [activeProduct, setActiveProduct] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [cart, setCart] = useState([]);
+            const [notification, setNotification] = useState(null);
+
+            // 1. CARGA DE DATOS (AQUÍ AGREGUÉ LA LECTURA DE LA DESCRIPCIÓN)
+            useEffect(() => {
+                Papa.parse("productos.csv", {
+                    download: true,
+                    header: true,
+                    complete: (results) => {
+                        const transformados = results.data
+                            .filter(item => item.ID) 
+                            .map(item => ({
+                                id: item.ID,
+                                name: item.Nombre,
+                                price: parseFloat(item.Precio) || 0,
+                                category: item.Categoria,
+                                img: item.Imagen,
+                                isBestSeller: item.Destacado === "SI",
+                                gallery: item.Galeria ? item.Galeria.split(',').map(url => url.trim()) : [],
+                                // NUEVO: Leemos la descripción. Si está vacía, ponemos un texto por defecto.
+                                description: item.Descripcion || "Diseño exclusivo de la colección Luxury DTF. Algodón premium y acabados de alta durabilidad."
+                            }));
+                        setAllProducts(transformados);
+                        setLoading(false);
+                    },
+                    error: (error) => {
+                        console.error("Error cargando el CSV:", error);
+                        setLoading(false);
+                    }
+                });
+            }, []);
+
+            const filteredProducts = useMemo(() => {
+                if (activeCategory === "Todos") return allProducts;
+                return allProducts.filter(p => p.category === activeCategory);
+            }, [activeCategory, allProducts]);
+
+            const triggerNotification = (msg) => {
+                setNotification(msg);
+                setTimeout(() => setNotification(null), 3000);
+            };
+
+            const addToCart = (product, size) => {
+                setCart([...cart, { ...product, size }]);
+                setActiveProduct(null);
+                triggerNotification(`${product.name} añadido al carrito`);
+            };
+
+            // VISTA HOME (Hero + Best Sellers)
+            if (page === "home") {
+                return (
+                    <div className="min-h-screen">
+                        <section className="relative h-[85vh] w-full overflow-hidden flex flex-col items-center justify-center text-center px-6">
+                            <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover opacity-50">
+                                <source src="https://assets.mixkit.co/videos/preview/mixkit-fashion-model-in-a-dark-urban-setting-34502-large.mp4" type="video/mp4" />
+                            </video>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-black/60 z-0" />
+                            <motion.h1 initial={{ y: 30, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.8 }} className="text-6xl md:text-9xl font-serif z-10 tracking-tighter mb-6">DTF LUXURY</motion.h1>
+                            <motion.button 
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => setPage("catalog")}
+                                className="px-12 py-4 bg-white text-black rounded-full font-bold z-10 tracking-widest text-sm shadow-[0_0_40px_rgba(255,255,255,0.3)]"
+                            >
+                                EXPLORAR COLECCIÓN
+                            </motion.button>
+                        </section>
+
+                        <section className="max-w-7xl mx-auto py-24 px-6">
+                            <h2 className="text-4xl font-serif mb-12 tracking-tight">Más Vendidos</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                                {allProducts.filter(p => p.isBestSeller).map(p => (
+                                    <motion.div whileHover={{ y: -10 }} key={p.id} onClick={() => { setActiveProduct(p); setPage("catalog"); }} className="glass rounded-[32px] overflow-hidden cursor-pointer group">
+                                        <div className="h-[450px] overflow-hidden">
+                                            <img src={p.img} className="w-full h-full object-cover transition duration-700 group-hover:scale-110" />
+                                        </div>
+                                        <div className="p-8">
+                                            <h3 className="text-2xl font-serif mb-2">{p.name}</h3>
+                                            <p className="opacity-50 font-light">Q{p.price}</p>
+                                        </div>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </section>
+                    </div>
+                );
+            }
+
+            // VISTA CATÁLOGO
+            return (
+                <div className="pt-28 px-6 max-w-7xl mx-auto min-h-screen">
+                    <nav className="fixed top-0 left-0 right-0 glass z-50 px-8 py-5 flex justify-between items-center backdrop-blur-xl bg-black/50">
+                        <button onClick={() => setPage("home")} className="text-xs uppercase tracking-widest hover:opacity-100 opacity-60 transition">← Inicio</button>
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar max-w-[200px] md:max-w-none">
+                            {["Todos", "Hombre", "Mujer", "Kids"].map(cat => (
+                                <button key={cat} onClick={() => setActiveCategory(cat)} className={`px-4 py-2 rounded-full text-xs font-medium tracking-wide transition ${activeCategory === cat ? 'bg-white text-black' : 'hover:bg-white/10'}`}>{cat}</button>
+                            ))}
+                        </div>
+                        <ShoppingCart count={cart.length} />
+                    </nav>
+
+                    <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-y-12 gap-x-8 pb-20">
+                        {loading ? <p className="col-span-4 text-center py-20 opacity-50">Cargando catálogo...</p> : 
+                        filteredProducts.map(p => (
+                            <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} key={p.id} onClick={() => setActiveProduct(p)} className="group cursor-pointer">
+                                <div className="aspect-[3/4] rounded-[32px] overflow-hidden glass mb-5 relative">
+                                    <img src={p.img} className="w-full h-full object-cover group-hover:scale-105 transition duration-700" />
+                                    <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition" />
+                                </div>
+                                <h3 className="font-serif text-lg tracking-tight mb-1">{p.name}</h3>
+                                <p className="opacity-40 text-sm font-light">Q{p.price}</p>
+                            </motion.div>
+                        ))}
+                    </motion.div>
+
+                    <AnimatePresence>
+                        {activeProduct && <ProductModal product={activeProduct} onClose={() => setActiveProduct(null)} onAdd={addToCart} />}
+                        {notification && <Notification message={notification} />}
+                    </AnimatePresence>
+                </div>
+            );
+        }
+
+        // --- PANEL DE DETALLES (SLIDER + DESCRIPCIÓN) ---
+        function ProductModal({ product, onClose, onAdd }) {
+            const [size, setSize] = useState("M");
+            const [currentIndex, setCurrentIndex] = useState(0);
+            
+            // Slider logic
+            const imagenes = [product.img, ...product.gallery].filter(url => url && url.length > 5);
+            const nextImage = () => setCurrentIndex((prev) => (prev + 1) % imagenes.length);
+            const prevImage = () => setCurrentIndex((prev) => (prev - 1 + imagenes.length) % imagenes.length);
+
+            return (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[150] flex items-center justify-center bg-black/95 p-4 backdrop-blur-md">
+                    <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#0a0a0a] w-full max-w-5xl h-[85vh] md:h-auto md:max-h-[80vh] rounded-[40px] overflow-hidden flex flex-col md:flex-row relative border border-white/10 shadow-2xl">
+                        <button onClick={onClose} className="absolute top-6 right-6 z-50 glass w-10 h-10 rounded-full flex items-center justify-center hover:bg-white/20 transition">✕</button>
+                        
+                        {/* 1. SLIDER (Izquierda) */}
+                        <div className="flex-1 relative bg-black h-[40%] md:h-auto overflow-hidden group">
+                            <AnimatePresence mode="wait">
+                                <motion.img 
+                                    key={currentIndex}
+                                    src={imagenes[currentIndex]}
+                                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                    transition={{ duration: 0.4 }}
+                                    drag="x" dragConstraints={{ left: 0, right: 0 }}
+                                    onDragEnd={(e, { offset }) => { if (offset.x > 50) prevImage(); else if (offset.x < -50) nextImage(); }}
+                                    className="w-full h-full object-cover cursor-grab active:cursor-grabbing"
+                                />
+                            </AnimatePresence>
+                            {/* Flechas de navegación (solo visibles en PC al hacer hover) */}
+                            {imagenes.length > 1 && (
+                                <>
+                                    <button onClick={prevImage} className="hidden md:flex absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 text-white rounded-full items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-black">←</button>
+                                    <button onClick={nextImage} className="hidden md:flex absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 text-white rounded-full items-center justify-center opacity-0 group-hover:opacity-100 transition hover:bg-black">→</button>
+                                    {/* Puntos indicadores */}
+                                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
+                                        {imagenes.map((_, i) => (
+                                            <div key={i} className={`h-1 rounded-full transition-all duration-300 ${i === currentIndex ? 'w-6 bg-white' : 'w-1.5 bg-white/30'}`} />
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* 2. INFORMACIÓN + DESCRIPCIÓN (Derecha) */}
+                        <div className="flex-1 p-8 md:p-12 flex flex-col justify-center overflow-y-auto">
+                            <span className="text-[10px] tracking-[0.2em] uppercase opacity-40 mb-3 text-white/60">{product.category}</span>
+                            <h2 className="text-3xl md:text-5xl font-serif mb-2 leading-tight">{product.name}</h2>
+                            <p className="text-2xl font-light mb-6 text-white">Q{product.price}</p>
+                            
+                            {/* --- AQUÍ ESTÁ LA NUEVA DESCRIPCIÓN --- */}
+                            <div className="mb-8 p-4 glass rounded-2xl border-white/5">
+                                <p className="text-white/70 font-light text-sm leading-relaxed whitespace-pre-line">
+                                    {product.description}
+                                </p>
+                            </div>
+
+                            <div className="mb-8">
+                                <p className="text-[10px] uppercase tracking-widest mb-3 opacity-40">Talla</p>
+                                <div className="flex gap-3">
+                                    {["S", "M", "L", "XL"].map(s => (
+                                        <button key={s} onClick={() => setSize(s)} className={`w-12 h-12 rounded-full border text-sm font-medium transition ${size === s ? 'bg-white text-black border-white' : 'border-white/10 hover:border-white/30 text-white/60'}`}>{s}</button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <button onClick={() => onAdd(product, size)} className="w-full py-5 bg-white text-black rounded-full font-bold uppercase tracking-widest text-xs hover:scale-[1.02] active:scale-[0.98] transition shadow-[0_0_20px_rgba(255,255,255,0.1)]">
+                                Añadir al Carrito
+                            </button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Home />);
+    </script>
+</body>
+</html>
